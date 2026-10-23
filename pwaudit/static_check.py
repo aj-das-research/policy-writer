@@ -11,6 +11,7 @@ Output: results/static/<model>/<suite>.jsonl, one line per user task.
 import argparse
 import json
 import multiprocessing as mp
+import os
 import sys
 import time
 import traceback
@@ -64,6 +65,9 @@ def run_user_task(args):
 
 
 def run(suite, model_key, workers, sources):
+    # Progent stores its always-allowed tools via set(), whose order (and hence the update prompt) depends on
+    # the string hash seed. Pin it so spawned workers build identical prompts across runs.
+    os.environ["PYTHONHASHSEED"] = "0"
     ctx = mp.get_context("spawn")
     from agentdojo.task_suite.load_suites import get_suite  # noqa: only for task ids; tools not wrapped here
     user_ids = list(get_suite(config.BENCHMARK_VERSION, suite).user_tasks)

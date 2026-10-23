@@ -20,6 +20,7 @@ Output: results/replay/<model>/<mode>/<suite>.jsonl, one line per trace. mode = 
 import argparse
 import json
 import multiprocessing as mp
+import os
 import re
 import sys
 import time
@@ -186,6 +187,9 @@ def main():
     if a.limit:
         files = trace_files(a.suite, "none")[: a.limit] + trace_files(a.suite, config.ATTACK)[: a.limit]
     print(f"[replay] suite={a.suite} model={a.model} mode={a.mode} traces={len(files)} workers={a.workers}")
+    # Progent stores its always-allowed tools via set(), whose order (and hence the update prompt) depends on
+    # the string hash seed. Pin it so spawned workers build identical prompts across runs.
+    os.environ["PYTHONHASHSEED"] = "0"
     ctx = mp.get_context("spawn")
     out, t0 = [], time.time()
     with ctx.Pool(a.workers, initializer=_init, initargs=(a.suite, a.model, a.mode == "narrow_only")) as pool:
