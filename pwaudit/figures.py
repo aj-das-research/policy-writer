@@ -48,12 +48,17 @@ def _bars(ax, models, values_default, values_narrow, reference=None, ref_label=N
         ax.set_ylim(*ylim)
 
 
+def _top(values):
+    """Upper y-limit leaving room for value labels."""
+    return max(1.0, 1.3 * max(values))
+
+
 def main_figure(summary):
     st, rp = summary["static"], summary["replay"]
     models = [m for m in MODEL_ORDER if m in st and m in rp and {"default", "narrow_only"} <= set(rp[m])]
     if not models:
         raise RuntimeError("no model has complete static + replay results")
-    fig, axes = plt.subplots(1, 4, figsize=(5.5, 1.55), gridspec_kw={"width_ratios": [1.15, 1, 1, 1]})
+    fig, axes = plt.subplots(1, 4, figsize=(5.5, 1.5), gridspec_kw={"width_ratios": [1.15, 1, 1, 1]})
 
     # (a) static trade-off
     ax = axes[0]
@@ -73,7 +78,7 @@ def main_figure(summary):
     ax.set_xlim(-5, 105), ax.set_ylim(-5, 108)
     ax.set_xlabel("false blocks (% user tasks)")
     ax.set_ylabel("attacks blocked (% pairs)")
-    ax.set_title("(a) initial policy vs. ground truth", loc="left")
+    ax.set_title("(a) static check", loc="left")
     ax.grid(color="#e6e5e1", lw=0.4), ax.set_axisbelow(True)
 
     any_m = rp[models[0]]["default"]
@@ -81,22 +86,24 @@ def main_figure(summary):
     _bars(axes[1], models, [rp[m]["default"]["replay_utility"] for m in models],
           [rp[m]["narrow_only"]["replay_utility"] for m in models], any_m["trace_utility"],
           f"no defense {any_m['trace_utility']:.1f}", ylim=(0, 70))
-    axes[1].set_title("(b) utility, benign replay (%)", loc="left")
+    axes[1].set_title("(b) replay utility (%)", loc="left")
     # (c) replay ASR
     _bars(axes[2], models, [rp[m]["default"]["replay_asr"] for m in models],
-          [rp[m]["narrow_only"]["replay_asr"] for m in models], None, None, ylim=(0, 6), fmt="{:.1f}")
-    axes[2].set_title(f"(c) ASR, attacked replay (%)", loc="left")
+          [rp[m]["narrow_only"]["replay_asr"] for m in models], None, None,
+          ylim=(0, _top([rp[m][k]["replay_asr"] for m in models for k in rp[m]])), fmt="{:.1f}")
+    axes[2].set_title("(c) replay ASR (%)", loc="left")
     axes[2].text(0.98, 0.97, f"no defense: {any_m['trace_asr']:.1f}", transform=axes[2].transAxes, ha="right",
                  va="top", fontsize=5, color=MUTED)
     # (d) attacker values entering the policy
     _bars(axes[3], models, [rp[m]["default"]["attacker_in_policy"] for m in models],
-          [rp[m]["narrow_only"]["attacker_in_policy"] for m in models], None, None, ylim=(0, 10), fmt="{:.1f}")
-    axes[3].set_title("(d) attacker value in policy (%)", loc="left")
+          [rp[m]["narrow_only"]["attacker_in_policy"] for m in models], None, None,
+          ylim=(0, _top([rp[m][k]["attacker_in_policy"] for m in models for k in rp[m]])), fmt="{:.1f}")
+    axes[3].set_title("(d) atk. value in policy", loc="left")
     from matplotlib.patches import Patch
-    axes[3].legend(handles=[Patch(facecolor=GRAY, label="default"),
-                            Patch(facecolor=GRAY, alpha=0.55, hatch="////", label="narrow-only")],
-                   fontsize=5, frameon=False, loc="upper right", handlelength=1.2)
-    fig.tight_layout(pad=0.2, w_pad=0.6)
+    fig.tight_layout(pad=0.2, w_pad=0.6, rect=(0, 0, 1, 0.93))
+    fig.legend(handles=[Patch(facecolor=GRAY, label="default updates"),
+                        Patch(facecolor=GRAY, alpha=0.55, hatch="////", label="narrowing-only")],
+               fontsize=5.5, frameon=False, loc="upper right", ncol=2, handlelength=1.4, bbox_to_anchor=(1.0, 1.01))
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     out = FIG_DIR / "main.pdf"
     fig.savefig(out)
@@ -125,7 +132,11 @@ def main_table(summary):
     any_m = next(iter(rp.values()))["default"]
     ref = (f"No defense (trace) & -- & -- & {f(any_m['trace_utility'])} & {f(any_m['trace_asr'])} & -- & -- & "
            f"{f(any_m['trace_utility'])} & {f(any_m['trace_asr'])} & -- & -- \\\\")
-    tex = "\n".join(rows) + "\n\\midrule\n" + "\n".join(ctrl) + "\n" + ref + "\n"
+    head = ("\\begin{tabular}{lcc|cccc|cccc}\n\\toprule\n"
+            " & \\multicolumn{2}{c|}{Static (initial policy)} & \\multicolumn{4}{c|}{Replay, default updates}"
+            " & \\multicolumn{4}{c}{Replay, narrowing-only} \\\\\n"
+            "Policy & FB & Blk & Util & ASR & AtkPol & Unblk & Util & ASR & AtkPol & Unblk \\\\\n\\midrule\n")
+    tex = head + "\n".join(rows) + "\n\\midrule\n" + "\n".join(ctrl) + "\n" + ref + "\n\\bottomrule\n\\end{tabular}\n"
     (config.RESULTS / "table_main.tex").write_text(tex)
     print(f"[figures] wrote {config.RESULTS / 'table_main.tex'}")
 
@@ -166,7 +177,9 @@ def numbers_tex(summary):
                 macros[f"rp{tag[m]}{mt}{name}"] = f(v[key])
             macros[f"rp{tag[m]}{mt}Applied"] = str(v["counters"]["update_applied"])
             macros[f"rp{tag[m]}{mt}Rejected"] = str(v["counters"]["update_rejected_narrow"])
+    macros.update(nPairs=str(st["deny_all"]["n_pairs"]), nPairsNoGT=str(st["deny_all"]["n_pairs_no_gt"]))
     any_m = next(iter(rp.values()))["default"]
+    macros["nAtkGT"] = str(any_m["n_attacked_with_gt"])
     macros.update(traceASR=f(any_m["trace_asr"]), traceUtil=f(any_m["trace_utility"]),
                   nAttacked=str(any_m["n_attacked"]), nExcluded=str(any_m["n_excluded"]),
                   exclTraceASR=f(any_m["excluded_trace_asr"]))
