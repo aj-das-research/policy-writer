@@ -1,0 +1,1 @@
+Vendored from https://github.com/sunblaze-ucb/progent @ 5be7b63fa96f70bc19b72fbcee81f1c0bcc1a565 (secagent/ and agentdojo/ only). Local edits are listed in vendor/PATCHES.md.

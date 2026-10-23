@@ -1,0 +1,22 @@
+# secrets — never commit
+.env
+.env.*
+*.key
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# large / generated
+third_party/
+logs/
+*.log
+report/*.aux
+report/*.log
+report/*.out
+report/*.bbl
+report/*.blg
+report/*.fls
+report/*.fdb_latexmk
