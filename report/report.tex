@@ -9,6 +9,9 @@
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{microtype}
+\usepackage{wrapfig}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
 \input{../results/numbers.tex}
 
 % Two-page budget: tighter float and section spacing.
@@ -39,6 +42,15 @@ generates updates from raw tool outputs, applies them with \code{manual\_check=F
 (\code{SECAGENT\_ONLY\_ALLOW\_NARROW}) commented out. \para{Outcome.} Failure analysis with ablations, anchored by an exact reproduction.
 
 \section{Method}
+\begin{wrapfigure}[11]{r}{0.5\textwidth}
+\vspace{-1.2em}
+\centering
+\resizebox{\linewidth}{!}{\input{arch.tex}}
+\vspace{-1.4em}
+\caption{\small Audit setup. Progent's loop (left); our static check and trace replay feed its checker (right).}
+\label{fig:arch}
+\vspace{-1.2em}
+\end{wrapfigure}
 We run Progent's own code (\code{secagent} and its AgentDojo fork, suite v1.2) with policy logic and prompts unchanged.
 \textbf{Static check:} for each of 97 user tasks Progent writes the initial policy $P_u$ (hand-written always-allowed list
 + LLM entries); every ground-truth call of $u$ and of every injection task is checked by Progent's

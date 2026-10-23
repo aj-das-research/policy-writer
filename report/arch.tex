@@ -1,0 +1,25 @@
+% Architecture of the audit: Progent's policy loop and where our two experiments attach.
+\begin{tikzpicture}[font=\fontsize{5.5}{6.2}\selectfont, >={Latex[length=1.3mm,width=1.1mm]},
+  box/.style={draw=black!55, rounded corners=1.5pt, inner sep=1.8pt, align=center, line width=0.35pt, fill=#1},
+  box/.default=white, arr/.style={->, line width=0.4pt, draw=black!70}]
+  % Progent (left column)
+  \node[box=blue!7]  (q) at (0.95, 0)     {user query};
+  \node[box=blue!7]  (w) at (0.95,-0.62)  {policy LLM\\writes $P_0$};
+  \node[box=gray!12, minimum width=1.5cm] (p) at (0.95,-1.42) {policy $P_t$\\{\fontsize{4.6}{5}\selectfont JSON schema / tool}};
+  \node[box=blue!7]  (u) at (0.95,-2.45)  {update LLM\\decide $\to$ rewrite};
+  % inputs (right column)
+  \node[box=green!9] (gt) at (2.95,-0.45) {static: ground-truth\\calls (user, injection)};
+  \node[box=green!9] (tr) at (4.95,-0.45) {replay: shipped\\trace call$_t$};
+  \node[box=gray!12, minimum width=2.75cm] (c) at (3.95,-1.42) {Progent checker\\{\fontsize{4.6}{5}\selectfont \texttt{check\_tool\_call}}};
+  \node[box=red!9, draw=red!60!black] (o) at (3.95,-2.45) {recorded output$_t$\\{\color{red!60!black}attacker-writable}};
+  % flow
+  \draw[arr] (q) -- (w);
+  \draw[arr] (w) -- (p);
+  \draw[arr] (p) -- node[above]{check} (c);
+  \draw[arr] (gt.south) -- (gt.south |- c.north);
+  \draw[arr] (tr.south) -- (tr.south |- c.north);
+  \draw[arr] (c) -- node[right, align=left]{allowed} (o);
+  \draw[arr, draw=red!60!black] (o) -- node[below]{\color{red!60!black}injected text} (u);
+  \draw[arr] (u) -- node[left, align=right, xshift=0.5pt]{$P_{t+1}$} node[right, align=left, xshift=3pt, fill=white, inner sep=0.8pt, draw=black!45, dashed]{narrow-only\\check (off)} (p);
+  \node[anchor=north west, align=left, text=black!70] at ([yshift=-1pt]c.south east) {blocked $\Rightarrow$\\FB/Blk; replay\\stops};
+\end{tikzpicture}
