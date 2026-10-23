@@ -163,8 +163,32 @@ def reset_security_policy(include_human_policy=False) -> None:
 total_completion_tokens = 0
 total_prompt_tokens = 0
 
+# [policy-writer patch] Any OpenAI-compatible local server (vLLM) selected by env, not by model-name prefix.
+local_base_url = os.getenv("SECAGENT_POLICY_BASE_URL")
+print(f"Policy endpoint: {local_base_url or 'provider default'}", file=sys.stderr)
+
 
 def api_request(sys_prompt, user_prompt, temperature=0.0) -> None:
+    # [policy-writer patch] Deterministic on-disk cache of policy-model calls (see policy_cache.py).
+    from .policy_cache import cached_request
+    return cached_request(policy_model, sys_prompt, user_prompt, temperature, _api_request)
+
+
+def _api_request(sys_prompt, user_prompt, temperature=0.0):
+    """Upstream api_request, returning (text, usage dict). Only the client selection and usage return are changed."""
+    if local_base_url is not None:
+        from openai import OpenAI
+        client = OpenAI(base_url=local_base_url, api_key="EMPTY")
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            model=policy_model,
+            temperature=temperature,
+            seed=0,
+        )
+        return chat_completion.choices[0].message.content, _usage(chat_completion)
     global total_completion_tokens, total_prompt_tokens
     if policy_model.startswith("claude"):
         from anthropic import Anthropic
@@ -183,7 +207,7 @@ def api_request(sys_prompt, user_prompt, temperature=0.0) -> None:
         # total_prompt_tokens += message.usage.input_tokens
         # print("[Policy] tokens (completion, prompt): ", message.usage.output_tokens, message.usage.input_tokens,
         #       "total (completion, prompt): ", total_completion_tokens, total_prompt_tokens, file=sys.stderr)
-        return message.content[0].text
+        return message.content[0].text, {"prompt_tokens": message.usage.input_tokens, "completion_tokens": message.usage.output_tokens}
     if policy_model.startswith("gemini"):
         import vertexai.generative_models as genai
         vertexai_model = genai.GenerativeModel(
@@ -197,7 +221,7 @@ def api_request(sys_prompt, user_prompt, temperature=0.0) -> None:
             )],
             generation_config=genai.GenerationConfig(temperature=temperature),
         )
-        return response.text
+        return response.text, None
     from openai import OpenAI
     if policy_model.startswith("meta-llama/") or policy_model.startswith("Qwen/"):
         client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="EMPTY")
@@ -254,7 +278,12 @@ def api_request(sys_prompt, user_prompt, temperature=0.0) -> None:
     # total_prompt_tokens += chat_completion.usage.prompt_tokens
     # print("[Policy] tokens (completion, prompt): ", chat_completion.usage.completion_tokens, chat_completion.usage.prompt_tokens,
     #       "total (completion, prompt): ", total_completion_tokens, total_prompt_tokens, file=sys.stderr)
-    return chat_completion.choices[0].message.content
+    return chat_completion.choices[0].message.content, _usage(chat_completion)
+
+
+def _usage(chat_completion):
+    u = chat_completion.usage
+    return None if u is None else {"prompt_tokens": u.prompt_tokens, "completion_tokens": u.completion_tokens}
 
 
 POLICY_SUGGESTIONS = """Do not use any information you cannot find in the user's query. This is very important and you must keep it in mind. For example, if the user's query only mentions the name but does not include complete numbers or email addresses, you should not include them in the policy.
@@ -306,7 +335,7 @@ def get_SYS_PROMPT() -> str:
     else:
         sys_prompt = SYS_PROMPT
     output_formater = ""
-    if policy_model.startswith("o1") or policy_model.startswith("o3") or policy_model.startswith("gpt-4.1") or policy_model.startswith("gemini") or policy_model.startswith("meta-llama/") or policy_model.startswith("Qwen/") or policy_model.startswith("vertex_ai/gemini"):
+    if policy_model.startswith("o1") or policy_model.startswith("o3") or policy_model.startswith("gpt-4.1") or policy_model.startswith("gemini") or policy_model.startswith("meta-llama/") or policy_model.startswith("Qwen/") or policy_model.startswith("vertex_ai/gemini") or local_base_url is not None:
         output_formater = "\nOutput format: ```json [{\"name\": tool_name, \"args\": restrictions}, ...] ```"
     if policy_model.startswith("claude") or policy_model.startswith("vertex_ai/claude"):
         sys_prompt = sys_prompt[:-1]
@@ -366,7 +395,7 @@ def get_SYS_PROMPT_2() -> str:
     if policy_model.startswith("gpt-4o-mini"):
         sys_prompt = sys_prompt[:-1]
         output_formater = " with json block. It should be an array of dictionaries like {\"name\": tool_name, \"args\": restrictions}."
-    if policy_model.startswith("gemini") or policy_model.startswith("meta-llama/") or policy_model.startswith("Qwen/"):
+    if policy_model.startswith("gemini") or policy_model.startswith("meta-llama/") or policy_model.startswith("Qwen/") or local_base_url is not None:
         sys_prompt = sys_prompt[:-1]
         output_formater = " with json code block. It should be an array of dictionaries like {\"name\": tool_name, \"args\": restrictions}."
     return sys_prompt+output_formater

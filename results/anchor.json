@@ -1,0 +1,25 @@
+{
+  "anchor_run": "gpt-4o-2024-05-13",
+  "published": {
+    "utility": 69.07,
+    "utility_under_attack": 50.08,
+    "targeted_asr": 47.69
+  },
+  "recomputed": {
+    "n_user_tasks": 97,
+    "n_attack_cases": 629,
+    "utility": 69.0721649484536,
+    "utility_under_attack": 50.07949125596184,
+    "targeted_asr": 47.69475357710652,
+    "n_errors": 0
+  },
+  "replay_run": "meta-llama_Llama-3.3-70B-Instruct",
+  "replay_run_stats": {
+    "n_user_tasks": 97,
+    "n_attack_cases": 949,
+    "utility": 57.7319587628866,
+    "utility_under_attack": 41.41201264488936,
+    "targeted_asr": 23.076923076923077,
+    "n_errors": 0
+  }
+}
