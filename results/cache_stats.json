@@ -1,24 +1,24 @@
 {
   "Qwen/Qwen2.5-7B-Instruct": {
-    "calls": 2073,
-    "prompt_tokens": 7772624,
-    "completion_tokens": 272433,
+    "calls": 2090,
+    "prompt_tokens": 7851821,
+    "completion_tokens": 276082,
     "max_completion": 754,
-    "hours": 0.3644365362988578
+    "hours": 0.48711679995059964
   },
   "Qwen/Qwen3-30B-A3B-Instruct-2507": {
-    "calls": 1459,
-    "prompt_tokens": 4812072,
-    "completion_tokens": 200644,
-    "max_completion": 1690,
-    "hours": 0.10562776472833421
+    "calls": 1727,
+    "prompt_tokens": 6180430,
+    "completion_tokens": 272263,
+    "max_completion": 4096,
+    "hours": 0.3321469640731812
   },
   "Qwen/Qwen3.5-9B": {
-    "calls": 2761,
-    "prompt_tokens": 9985756,
-    "completion_tokens": 1259793,
+    "calls": 2973,
+    "prompt_tokens": 10972685,
+    "completion_tokens": 1515976,
     "max_completion": 4096,
-    "hours": 0.3880840131309297
+    "hours": 0.6248919244607289
   },
   "gpt-4o-2024-08-06": {
     "calls": 1879,
@@ -28,10 +28,10 @@
     "hours": 0.3457853415939543
   },
   "mistralai/Mistral-Small-3.2-24B-Instruct-2506": {
-    "calls": 3060,
-    "prompt_tokens": 11084703,
-    "completion_tokens": 613361,
-    "max_completion": 2210,
-    "hours": 0.40905422574943967
+    "calls": 3240,
+    "prompt_tokens": 11882213,
+    "completion_tokens": 659644,
+    "max_completion": 2485,
+    "hours": 0.6361913946602079
   }
 }

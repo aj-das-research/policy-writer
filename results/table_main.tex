@@ -3,8 +3,11 @@
  & \multicolumn{2}{c|}{Static (initial policy)} & \multicolumn{4}{c|}{Replay, default updates} & \multicolumn{4}{c}{Replay, narrowing-only} \\
 Policy & FB & Blk & Util & ASR & AtkPol & Unblk & Util & ASR & AtkPol & Unblk \\
 \midrule
-GPT-4o & 17.5 & 96.1 & 44.3 & 0.7 & 1.4 & 1.9 & 42.3 & 0.1 & 0.2 & 0.0 \\
-Qwen2.5-7B & 45.4 & 99.3 & 32.0 & 0.3 & 3.7 & 1.2 & 30.9 & 0.1 & 0.2 & 0.0 \\
+GPT-4o & 17.5 & 96.1 & 44.3 & 0.7 & 1.2 & 1.9 & 42.3 & 0.1 & 0.0 & 0.0 \\
+Qwen3-30B-A3B & 44.3 & 99.5 & 37.1 & 5.1 & 24.1 & 15.8 & 35.1 & 0.0 & 1.9 & 0.0 \\
+Mistral-Small-24B & 30.9 & 97.1 & 40.2 & 3.7 & 25.3 & 15.8 & 36.1 & 0.3 & 2.0 & 0.2 \\
+Qwen3.5-9B & 25.8 & 93.5 & 42.3 & 2.8 & 13.2 & 14.1 & 41.2 & 0.4 & 2.4 & 0.0 \\
+Qwen2.5-7B & 45.4 & 99.3 & 32.0 & 0.3 & 3.1 & 1.2 & 30.9 & 0.1 & 0.0 & 0.0 \\
 \midrule
 Allow-all & 0.0 & 0.0 & \multicolumn{8}{c}{} \\
 Deny-all & 100.0 & 100.0 & \multicolumn{8}{c}{} \\

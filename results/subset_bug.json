@@ -1,0 +1,15 @@
+{
+  "old_restriction": {
+    "enum": []
+  },
+  "new_restriction": {
+    "enum": [
+      "13"
+    ]
+  },
+  "value": "13",
+  "progent_accepts_as_narrowing": true,
+  "enforcement_allows_value_before": false,
+  "enforcement_allows_value_after": true,
+  "is_widening_accepted": true
+}
