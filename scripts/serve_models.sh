@@ -10,6 +10,8 @@ DATA_DIR=${DATA_DIR:-/mnt/nvme2/abhijit/projects/policy-writer}
 export HF_HOME=${HF_HOME:-$DATA_DIR/hf_cache}
 # FlashInfer's top-k/top-p sampler fails its arch check on these Blackwell GPUs; use vLLM's PyTorch sampler.
 export VLLM_USE_FLASHINFER_SAMPLER=0
+# FlashInfer's JIT arch auto-detection comes back empty in vLLM workers here; set the RTX PRO 6000 (sm_120) target.
+export FLASHINFER_CUDA_ARCH_LIST=${FLASHINFER_CUDA_ARCH_LIST:-12.0f}
 mkdir -p "$DATA_DIR/logs"
 
 # name | served model name | weights (HF id or local path) | GPUs | port | parallelism + memory | extra args

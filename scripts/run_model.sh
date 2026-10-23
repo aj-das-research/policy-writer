@@ -10,13 +10,12 @@ LOGS=${PW_DATA_DIR:-/mnt/nvme2/abhijit/projects/policy-writer}/logs
 mkdir -p "$LOGS"
 cd "$(dirname "$0")/.."
 for s in $SUITES; do
-  (
-    set -e
-    $PY -m pwaudit.static_check --suite "$s" --model "$MODEL" --workers "$WORKERS"
-    $PY -m pwaudit.replay --suite "$s" --model "$MODEL" --mode default --workers "$WORKERS"
-    $PY -m pwaudit.replay --suite "$s" --model "$MODEL" --mode narrow_only --workers "$WORKERS"
-    echo "[run_model] DONE $MODEL $s"
-  ) > "$LOGS/run_${MODEL}_${s}.log" 2>&1 || echo "[run_model] FAILED $MODEL $s (see $LOGS/run_${MODEL}_${s}.log)" &
+  # Explicit && chain: `set -e` is ignored inside a subshell that is the left side of `||`.
+  { $PY -m pwaudit.static_check --suite "$s" --model "$MODEL" --workers "$WORKERS" &&
+    $PY -m pwaudit.replay --suite "$s" --model "$MODEL" --mode default --workers "$WORKERS" &&
+    $PY -m pwaudit.replay --suite "$s" --model "$MODEL" --mode narrow_only --workers "$WORKERS" &&
+    echo "[run_model] DONE $MODEL $s"; } > "$LOGS/run_${MODEL}_${s}.log" 2>&1 \
+    || echo "[run_model] FAILED $MODEL $s (see $LOGS/run_${MODEL}_${s}.log)" &
 done
 wait
 echo "[run_model] finished $MODEL"

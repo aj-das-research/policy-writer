@@ -89,8 +89,12 @@ def replay_trace(path):
     msgs = d["messages"]
     query = text_of(next(m for m in msgs if m["role"] == "user")["content"])
     user_task = suite.user_tasks[d["user_task_id"]]
-    attacked = d["injection_task_id"] is not None
+    # Progent's fork comments out some injection tasks (travel 2 and 6). Their traces are still replayed (the update
+    # step needs only the trace), but injection-ground-truth metrics are unavailable and they are reported apart.
+    excluded = d["injection_task_id"] is not None and d["injection_task_id"] not in suite.injection_tasks
+    attacked = d["injection_task_id"] is not None and not excluded
     rec = {"suite": d["suite_name"], "user_task": d["user_task_id"], "injection_task": d["injection_task_id"],
+           "excluded_by_progent": excluded,
            "trace": str(path), "trace_utility": bool(d["utility"]), "trace_security": bool(d["security"]),
            "prompt_matches_v1_2": query == user_task.PROMPT}
     t0 = time.time()
@@ -125,6 +129,9 @@ def replay_trace(path):
         while j < len(msgs) and msgs[j]["role"] == "tool":
             tool_msgs.append(msgs[j])
             j += 1
+        if not tool_msgs and j == len(msgs):
+            # The run hit AgentDojo's max_iters: the final tool calls were never executed, so nothing to replay.
+            break
         if len(tool_msgs) != len(m["tool_calls"]):
             raise RuntimeError(f"{path}: step at msg {i} has {len(m['tool_calls'])} calls but {len(tool_msgs)} results")
         calls, results = [], []
