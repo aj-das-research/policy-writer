@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.environ.get("PW_DATA_DIR", "/mnt/hdd2/Abhijit/projects/policy-writer"))
+DATA_DIR = Path(os.environ.get("PW_DATA_DIR", "/mnt/nvme2/abhijit/projects/policy-writer"))
 TRACES_ROOT = Path(os.environ.get("PW_TRACES_ROOT", "/mnt/hdd2/Abhijit/policy-writer-data/agentdojo-upstream"))
 RESULTS = REPO / "results"
 CACHE_PATH = DATA_DIR / "policy_cache.sqlite"

@@ -8,3 +8,5 @@ All patches are marked `[policy-writer patch]` in the source. Policy logic and p
 2. `secagent/tool.py` + `secagent/policy_cache.py` — `api_request` goes through an SQLite cache keyed by
    sha256(model, system prompt, user prompt, temperature), storing token usage. Only successful responses are
    cached; exceptions still reach upstream's retry loop.
+3. `secagent/tool.py` — `audit_counters`: counts update-step outcomes (decide yes/no, declined — extract_json returns None for a reply starting with "No" —, rejected by
+   narrowing-only, applied, error ignored). Instrumentation only.

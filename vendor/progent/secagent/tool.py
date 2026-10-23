@@ -162,6 +162,9 @@ def reset_security_policy(include_human_policy=False) -> None:
 
 total_completion_tokens = 0
 total_prompt_tokens = 0
+# [policy-writer patch] Counters for update-step outcomes (instrumentation only; behaviour unchanged).
+audit_counters = {"decide_yes": 0, "decide_no": 0, "update_declined": 0, "update_rejected_narrow": 0,
+                  "update_applied": 0, "update_error_ignored": 0}
 
 # [policy-writer patch] Any OpenAI-compatible local server (vLLM) selected by env, not by model-name prefix.
 local_base_url = os.getenv("SECAGENT_POLICY_BASE_URL")
@@ -453,7 +456,9 @@ def decide_whether_to_update(tool_call_param) -> bool:
             # with open("tmp_output.txt", "a") as f:
             #     f.write(content + "\n")
             #     f.write(res + "\n")
-            return res.strip().lower().startswith("yes")
+            decision = res.strip().lower().startswith("yes")
+            audit_counters["decide_yes" if decision else "decide_no"] += 1
+            return decision
         except Exception as e:
             counter += 1
             temperature += 0.2
@@ -482,6 +487,7 @@ def generate_update_security_policy(tool_call_param, tool_call_result, manual_ch
             else:
                 generated_policy = extract_json(res)
             if generated_policy is None:
+                audit_counters["update_declined"] += 1
                 return
             if manual_check:
                 print(f"The generated security policy is: {generated_policy}.\nDo you want to apply it?[y/N]", file=sys.stderr, end='', flush=True)
@@ -507,6 +513,7 @@ def generate_update_security_policy(tool_call_param, tool_call_result, manual_ch
                     new_policy[tool_name].append((100, 0, allowed_tool["args"], 0))
                 if not security_policy_subset_check(security_policy, new_policy):
                     print("The generated security policy is not a subset of the previous policy, discard it.", file=sys.stderr)
+                    audit_counters["update_rejected_narrow"] += 1
                     return
             #
             delete_generated_policy()
@@ -518,6 +525,7 @@ def generate_update_security_policy(tool_call_param, tool_call_result, manual_ch
                     security_policy[tool_name] = []
                 security_policy[tool_name].append((100, 0, allowed_tool["args"], 0))
             print(f"security policy updated: {security_policy}", file=sys.stderr)
+            audit_counters["update_applied"] += 1
             return
         except Exception as e:
             counter += 1
@@ -525,6 +533,7 @@ def generate_update_security_policy(tool_call_param, tool_call_result, manual_ch
             if counter > 5:
                 if ignore_update_error:
                     print(f"Error: {e}. Ignore the update error.", file=sys.stderr)
+                    audit_counters["update_error_ignored"] += 1
                     return
                 else:
                     raise e
