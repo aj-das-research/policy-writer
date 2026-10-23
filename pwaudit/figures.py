@@ -130,10 +130,68 @@ def main_table(summary):
     print(f"[figures] wrote {config.RESULTS / 'table_main.tex'}")
 
 
+def cache_stats():
+    """Token counts and wall-clock span per policy model, from the policy-call cache."""
+    import sqlite3
+    con = sqlite3.connect(config.CACHE_PATH)
+    rows = con.execute("SELECT model, COUNT(*), SUM(prompt_tokens), SUM(completion_tokens), MAX(completion_tokens), "
+                       "MIN(created), MAX(created) FROM calls GROUP BY model").fetchall()
+    return {r[0]: {"calls": r[1], "prompt_tokens": r[2], "completion_tokens": r[3], "max_completion": r[4],
+                   "hours": (r[6] - r[5]) / 3600} for r in rows}
+
+
+# gpt-4o-2024-08-06 list price, USD per 1M tokens (input, output)
+GPT4O_PRICE = (2.50, 10.00)
+
+
+def numbers_tex(summary):
+    """LaTeX macros for every number quoted in the report text."""
+    macros = {}
+    a = summary["anchor"]
+    for k, v in a["recomputed"].items():
+        if isinstance(v, float):
+            macros[f"anchor{k.replace('_', '')}"] = f"{v:.2f}"
+    st, rp = summary["static"], summary["replay"]
+    tag = {"gpt-4o": "Gpt", "qwen3-30b": "Qthirty", "mistral-24b": "Mistral", "qwen3.5-9b": "Qnine",
+           "qwen2.5-7b": "Qseven", "allow_all": "Allow", "deny_all": "Deny", "human_only": "Human"}
+    for k, v in st.items():
+        macros[f"st{tag[k]}FB"] = f(v["false_block"])
+        macros[f"st{tag[k]}Blk"] = f(v["attacks_blocked"])
+    for m, modes in rp.items():
+        for mode, v in modes.items():
+            mt = "D" if mode == "default" else "N"
+            for key, name in [("replay_utility", "Util"), ("replay_asr", "ASR"), ("attacker_in_policy", "AtkPol"),
+                              ("attack_unblocked", "Unblk"), ("benign_false_block", "BFB"),
+                              ("excluded_replay_asr", "ExclASR")]:
+                macros[f"rp{tag[m]}{mt}{name}"] = f(v[key])
+            macros[f"rp{tag[m]}{mt}Applied"] = str(v["counters"]["update_applied"])
+            macros[f"rp{tag[m]}{mt}Rejected"] = str(v["counters"]["update_rejected_narrow"])
+    any_m = next(iter(rp.values()))["default"]
+    macros.update(traceASR=f(any_m["trace_asr"]), traceUtil=f(any_m["trace_utility"]),
+                  nAttacked=str(any_m["n_attacked"]), nExcluded=str(any_m["n_excluded"]),
+                  exclTraceASR=f(any_m["excluded_trace_asr"]))
+    cs = cache_stats()
+    g = cs.get("gpt-4o-2024-08-06")
+    if g:
+        cost = g["prompt_tokens"] / 1e6 * GPT4O_PRICE[0] + g["completion_tokens"] / 1e6 * GPT4O_PRICE[1]
+        macros.update(gptCost=f"{cost:.2f}", gptMTokIn=f"{g['prompt_tokens'] / 1e6:.1f}",
+                      gptMTokOut=f"{g['completion_tokens'] / 1e6:.2f}", gptCalls=f"{g['calls']:,}".replace(",", "{,}"))
+    macros["totalCalls"] = f"{sum(v['calls'] for v in cs.values()):,}".replace(",", "{,}")
+    macros["maxCompletion"] = str(max(v["max_completion"] for v in cs.values()))
+    import sqlite3
+    macros["nTruncated"] = str(sqlite3.connect(config.CACHE_PATH).execute(
+        "SELECT COUNT(*) FROM calls WHERE completion_tokens >= ?", (config.LOCAL_MAX_TOKENS,)).fetchone()[0])
+    tex = "\n".join(f"\\newcommand{{\\{k}}}{{{v}}}" for k, v in sorted(macros.items())) + "\n"
+    (config.RESULTS / "numbers.tex").write_text(tex)
+    (config.RESULTS / "cache_stats.json").write_text(json.dumps(cs, indent=2))
+    print(f"[figures] wrote {len(macros)} macros -> {config.RESULTS / 'numbers.tex'}")
+
+
 def main():
     summary = json.loads((config.RESULTS / "summary.json").read_text())
     main_figure(summary)
     main_table(summary)
+    numbers_tex(summary)
 
 
 if __name__ == "__main__":

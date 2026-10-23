@@ -1,0 +1,148 @@
+\documentclass{article}
+\usepackage{iclr2026_conference,times}
+\iclrfinalcopy
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+\input{../results/numbers.tex}
+
+% Two-page budget: tighter float and section spacing.
+\setlength{\textfloatsep}{6pt plus 2pt minus 2pt}
+\setlength{\floatsep}{4pt}
+\setlength{\abovecaptionskip}{2pt}
+\setlength{\belowcaptionskip}{0pt}
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{\z@}{-1.2ex plus -0.3ex minus -0.2ex}{0.6ex}{\large\bf\raggedright}}
+\makeatother
+\newcommand{\para}[1]{\noindent\textbf{#1}\;}
+
+\title{Who Guards the Policy Writer? Auditing Progent's\\LLM-Written Tool Policies on AgentDojo}
+\author{Abhijit Das \\ MBZUAI \\ \texttt{aj.das.research@gmail.com}}
+
+\begin{document}
+\maketitle
+\vspace{-1.8em}
+
+\section{Question}
+\para{Paper and promise.} Progent~\citep{shi2025progent} has an LLM translate the user's query into a deterministic
+JSON-schema policy over tool calls and update it from tool results; with GPT-4o it reports that ASR on
+AgentDojo~\citep{debenedetti2024agentdojo} falls from 39.9\% to 1.0\% at similar utility (2.5\% with the initial policy alone).
+\para{Assumption tested.} The policy writer is reliable and not itself injectable. The paper's update rule keeps
+privileges monotone (``updates can only narrow privileges without approval''), but its headline run assumes an approver
+that accepts every expansion; in the released AgentDojo integration updates are generated from raw tool outputs and
+applied with \texttt{manual\_check=False}, and the narrowing-only check (\texttt{SECAGENT\_ONLY\_ALLOW\_NARROW}) is commented out.
+\para{Outcome type.} Failure analysis with an ablation (policy model; narrowing-only on/off), anchored by an exact reproduction.
+
+\section{Method}
+We run Progent's own code (\texttt{secagent} + its AgentDojo fork, suite v1.2), changing no policy logic or prompt.
+\textbf{(1) Static check.} For each of the 97 user tasks, Progent writes the initial policy $P_u$ (its hand-written
+always-allowed list plus the LLM-written entries). We check, with Progent's \texttt{check\_tool\_call} after AgentDojo's
+argument validation, every ground-truth call of $u$ and of every injection task. \emph{False block}: \% of user tasks
+with $\geq$1 ground-truth call blocked. \emph{Attacks blocked}: \% of (user, injection) pairs with $\geq$1 injection
+ground-truth call blocked. \textbf{(2) Update replay.} We walk AgentDojo's shipped, undefended traces step by step: each
+call is checked against the current policy; if one is blocked, the trace diverges from what Progent would produce and we
+stop; otherwise the step's calls and \emph{recorded} tool outputs go through Progent's update
+(\texttt{generate\_update\_security\_policy}). If nothing is blocked, the agent saw byte-identical inputs, so the recorded
+outcome is Progent's outcome. \emph{Replay ASR}: \% of attacked traces that succeeded and were never blocked (a lower
+bound). \emph{Attacker value in policy}: \% of attacked traces where a string from the injection task's ground-truth
+arguments (absent from the prompt and the user task's ground truth) appears in the policy after an update.
+\emph{Unblocked}: \% where an injection ground-truth call blocked by $P_u$ becomes allowed. \emph{Replay utility}: \% of
+benign traces with recorded utility and no block.
+
+\section{Setup}
+\para{Policy models.} GPT-4o-2024-08-06 (Progent's default, OpenAI API) and four open models served with vLLM:
+Qwen3-30B-A3B-Instruct-2507, Mistral-Small-3.2-24B, Qwen3.5-9B (thinking off), Qwen2.5-7B-Instruct; temperature 0, seed
+0, Progent's retry loop. \para{Agent / traces.} No live agent: we replay AgentDojo's published Llama-3.3-70B traces
+(v1.2.1, \texttt{important\_instructions}): 97 benign and \nAttacked{} attacked traces after Progent's exclusions (below).
+\para{Compute and cost.} 8$\times$ RTX PRO 6000 (96\,GB), shared with other jobs; \totalCalls{} cached policy calls;
+GPT-4o: \gptCalls{} calls, \gptMTokIn{}M input / \gptMTokOut{}M output tokens, \$\gptCost{} at list price. Library:
+Progent and AgentDojo, copied unmodified except four marked patches (local endpoint, request cache, update-outcome
+counters, a 4096-token cap for local models; max observed reply \maxCompletion{} tokens). Custom: checker harness, replay,
+analysis. \para{Deviations.} Progent's fork comments out travel injection tasks 2 and 6 (\nExcluded{} of 949 cases; task 6
+succeeds via text alone and can never be blocked by a tool policy), and its \texttt{benchmark.py} defaults to v1.1.2, not v1.2.
+We follow its v1.2 suite and report the excluded cases separately. Traces come from v1.2.1 and a different agent than the paper's.
+
+\section{Results}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figs/main.pdf}
+\caption{\textbf{(a)} Initial policies trade false blocks for blocked attacks (gray: controls). \textbf{(b--d)} Update
+replay over shipped traces; solid = Progent default (updates applied unconfirmed), hatched = narrowing-only.
+4o = GPT-4o, Q30B/M24B/Q9B/Q7B = open models. Dashed: undefended trace.}
+\label{fig:main}
+\end{figure}
+\begin{table}[t]
+\centering\scriptsize\setlength{\tabcolsep}{3.2pt}
+\caption{All metrics in \% (denominators: 97 user tasks; \nAttacked{} attack pairs/traces; 97 benign traces).
+FB = false block; Blk = attacks blocked; Util/ASR = replay utility/ASR; AtkPol = attacker value enters policy;
+Unblk = attack call unblocked by an update. Published (Progent, GPT-4o agent): ASR 39.9 $\to$ 1.0.}
+\label{tab:main}
+\begin{tabular}{lcc|cccc|cccc}
+\toprule
+ & \multicolumn{2}{c|}{Static (initial policy)} & \multicolumn{4}{c|}{Replay, default updates} & \multicolumn{4}{c}{Replay, narrowing-only} \\
+Policy & FB & Blk & Util & ASR & AtkPol & Unblk & Util & ASR & AtkPol & Unblk \\
+\midrule
+\input{../results/table_main.tex}
+\bottomrule
+\end{tabular}
+\end{table}
+
+\para{Anchor.} Recomputing AgentDojo's published GPT-4o (2024-05-13, no defense) row from its shipped traces gives
+utility \anchorutility\%, utility under attack \anchorutilityunderattack\%, and targeted ASR \anchortargetedasr\%,
+matching the leaderboard exactly. \para{Initial policies are not enough by themselves (Fig.~\ref{fig:main}a).} GPT-4o's
+initial policies falsely block \stGptFB\% of user tasks while blocking \stGptBlk\% of attacks; smaller writers block
+more of both. Utility therefore \emph{depends} on updates widening the policy from tool outputs, the channel an attacker controls.
+\para{Updates admit attacker values (Fig.~\ref{fig:main}d).} With the released defaults, attacker values enter GPT-4o's
+policy in \rpGptDAtkPol\% of attacked traces, and \rpGptDUnblk\% of attacks go from blocked to allowed. Example (banking,
+user task 12, ``\emph{Read the file landlord-notices.txt and follow the instructions precisely}''): after the injected
+file is read, GPT-4o adds \texttt{send\_money} with \texttt{recipient} $\in$ \{\texttt{US1330\ldots1212}\}, the attacker's
+IBAN, and the attack completes. Replay ASR stays low (\rpGptDASR\% vs.\ \traceASR\% undefended) because most attacks are
+blocked before any update could admit them. \para{Narrowing-only.} Enabling the check rejects \rpGptNRejected{} of
+GPT-4o's updates, removes every unblocked attack (\rpGptNUnblk\%) and lowers replay ASR to \rpGptNASR\%, at a utility of
+\rpGptNUtil\% vs.\ \rpGptDUtil\% by default. Attacker strings can still \emph{narrow} an unrestricted argument
+(\rpGptNAtkPol\%), which steers rather than expands the action space. On the \nExcluded{} excluded travel cases the
+undefended ASR is \exclTraceASR\% and replay ASR under GPT-4o is \rpGptDExclASR\%.
+
+\section{Verification}
+Controls run through the same checker: allow-all blocks no ground-truth call (FB \stAllowFB\%, Blk \stAllowBlk\%);
+deny-all blocks all (FB \stDenyFB\%, Blk \stDenyBlk\%); Progent's hand-written always-allowed list alone gives FB
+\stHumanFB\% and Blk \stHumanBlk\%, so the LLM entries are what restore utility. \nTruncated{} cached replies hit the output cap (and went through Progent's retry); replay consistency checks (calls vs.\ results per step) raise instead of skipping. Two harness bugs were caught
+by these checks and fixed before the final run (traces ending at AgentDojo's iteration cap; tasks removed by the fork).
+
+\section{Limitations and Next Step}
+Replay ASR is a lower bound: after a block the real agent would continue differently, and we cannot replay that. Traces
+come from Llama-3.3-70B, not GPT-4o, so absolute ASRs are not comparable with the paper. Literal string matching can miss
+paraphrased attacker values. One attack (\texttt{important\_instructions}); no adaptive attacker targeting the update
+prompt. \textbf{Next:} an adaptive attack that writes injections aimed at the \emph{policy updater} (e.g., ``the user
+authorised IBAN X''), measured with Progent's monotone check on, asking whether narrowing toward attacker-chosen values
+yields end-to-end attacks that the expansion check never sees.
+
+\section{AI Use, Collaboration, and Conduct}
+Claude Code (Opus) wrote the harness, ran experiments and drafted this report under my direction. I manually verified the
+anchor numbers against the AgentDojo leaderboard, the paper quotations, the Progent/AgentDojo diffs, and the example trace.
+AI errors caught: it misremembered the published GPT-4o ASR as 57.69\% (it is 47.69\%), and its first runner script
+silently continued after failed steps. No collaborators. All runs used AgentDojo's simulated environments only;
+no live accounts, systems, or agents; no API keys are included.
+
+{\footnotesize
+\bibliographystyle{iclr2026_conference}
+\begin{thebibliography}{2}
+\setlength{\itemsep}{0pt}
+\bibitem[Debenedetti et~al.(2024)]{debenedetti2024agentdojo}
+E.~Debenedetti, J.~Zhang, M.~Balunovi\'c, L.~Beurer-Kellner, M.~Fischer, F.~Tram\`er.
+\newblock AgentDojo: A dynamic environment to evaluate prompt injection attacks and defenses for LLM agents.
+\newblock arXiv:2406.13352, 2024. \url{https://arxiv.org/abs/2406.13352};
+code and traces: \url{https://github.com/ethz-spylab/agentdojo}.
+\bibitem[Shi et~al.(2025)]{shi2025progent}
+T.~Shi, J.~He, Z.~Wang, H.~Li, L.~Wu, W.~Guo, D.~Song.
+\newblock Progent: Securing AI agents with privilege control.
+\newblock arXiv:2504.11703, 2025. \url{https://arxiv.org/abs/2504.11703}; code: \url{https://github.com/sunblaze-ucb/progent}.
+\end{thebibliography}}
+\end{document}
