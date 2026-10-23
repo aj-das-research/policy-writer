@@ -11,6 +11,24 @@ integration, updates are computed from (possibly injected) tool outputs and appl
 (`tool_execution.py` calls the update with `manual_check=False`), and the narrowing-only check is off
 (`SECAGENT_ONLY_ALLOW_NARROW` is commented out in `run.sh`).
 
+## Results (all numbers from `results/summary.json`)
+
+| Policy writer | FB | Blk | Util (default) | ASR (default) | AtkPol (default) | Unblk (default) | ASR (narrow) | Unblk (narrow) |
+|---|---|---|---|---|---|---|---|---|
+| GPT-4o | 17.5 | 96.1 | 44.3 | 0.7 | 1.2 | 1.9 | 0.1 | 0.0 |
+| Qwen3-30B-A3B | 44.3 | 99.5 | 37.1 | 5.1 | 24.1 | 15.8 | 0.0 | 0.0 |
+| Mistral-Small-24B | 30.9 | 97.1 | 40.2 | 3.7 | 25.3 | 15.8 | 0.3 | 0.2 |
+| Qwen3.5-9B | 25.8 | 93.5 | 42.3 | 2.8 | 13.2 | 14.1 | 0.4 | 0.0 |
+| Qwen2.5-7B | 45.4 | 99.3 | 32.0 | 0.3 | 3.1 | 1.2 | 0.1 | 0.0 |
+| *No defense (trace)* | – | – | 57.7 | 22.3 | – | – | 22.3 | – |
+
+* Initial policies block most attacks but falsely block 17–45% of user tasks, so utility depends on updates written
+  from tool outputs, which is the attacker's channel.
+* With the released defaults (unconfirmed updates), attacker values enter the policy: rarely for GPT-4o (1.2%), but in
+  13–25% of attacked traces for the open writers, unblocking 14–16% of attacks.
+* Narrowing-only removes almost all of this (ASR ≤0.4%) for 1–4 utility points. The one remaining unblock comes from a
+  soundness gap in Progent's narrowing check (`pwaudit/subset_bug.py`).
+
 ## What we measure
 
 | Experiment | What is checked | Metrics |
@@ -29,6 +47,10 @@ integration, updates are computed from (possibly injected) tool outputs and appl
   passes no version flag.
 * Progent stores its hand-written always-allowed tools via `set()`, so the policy's key order, and therefore the
   update prompt, depends on `PYTHONHASHSEED`. Unpinned, runs are not reproducible. We pin it to 0.
+* **Narrowing-check soundness gap:** `security_policy_subset_check` ignores an empty `enum`, so
+  `{"enum": []}` → `{"enum": ["13"]}` is accepted as narrowing, although enforcement (jsonschema) blocks `"13"` before and
+  allows it after. Reproduced by `python -m pwaudit.subset_bug` (`results/subset_bug.json`), and seen in the replay
+  (Mistral, workspace user task 35 / injection task 1: the attacker's file id).
 * AgentDojo v1.2 workspace injection tasks 6–13 have no ground-truth calls, so the static check excludes them
   (they still count in the replay ASR).
 
@@ -42,6 +64,7 @@ pwaudit/              our code
   static_check.py     experiment 1: initial policies vs. ground-truth calls (+ controls)
   replay.py           experiment 2: shipped traces through Progent's update step (default / narrow_only)
   analyze.py          results/*.jsonl -> results/summary.json (all metrics, per suite)
+  subset_bug.py       reproduces the soundness gap in Progent's narrowing-only check
   figures.py          summary.json -> report/figs/main.pdf, results/table_main.tex, results/numbers.tex
 scripts/
   fetch_traces.sh     sparse checkout of the shipped AgentDojo traces (pinned commit)
@@ -49,7 +72,8 @@ scripts/
   run_model.sh        static check + both replay modes for one model, suites in parallel
 vendor/progent/       Progent (secagent + AgentDojo fork) @ 5be7b63, copied; patches listed in vendor/PATCHES.md
 results/              every number in the report is computed from files here
-report/               ICLR-2026-format LaTeX report; numbers come from results/numbers.tex
+notebooks/            reproduce_numbers.ipynb: executed; recomputes every reported number from results/
+report/               ICLR-2026-format LaTeX report (2 pages); numbers come from results/numbers.tex
 ```
 
 ## Setup

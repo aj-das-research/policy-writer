@@ -15,7 +15,7 @@ from .analyze import LABEL, MODEL_ORDER  # noqa: E402
 
 COLORS = dict(zip(MODEL_ORDER, ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]))
 GRAY, INK, MUTED = "#8a8985", "#0b0b0b", "#52514e"
-SHORT = {"gpt-4o": "4o", "qwen3-30b": "Q30B", "mistral-24b": "M24B", "qwen3.5-9b": "Q9B", "qwen2.5-7b": "Q7B"}
+SHORT = {"gpt-4o": "4o", "qwen3-30b": "30B", "mistral-24b": "24B", "qwen3.5-9b": "9B", "qwen2.5-7b": "7B"}
 FIG_DIR = config.REPO / "report" / "figs"
 
 plt.rcParams.update({
@@ -35,8 +35,8 @@ def _bars(ax, models, values_default, values_narrow, reference=None, ref_label=N
                 continue
             ax.bar(i + off, v, w * 0.92, color=COLORS[m], alpha=alpha, hatch=hatch, edgecolor=COLORS[m],
                    linewidth=0.4)
-            ax.text(i + off, v + (ylim[1] if ylim else max(values_default)) * 0.015, fmt.format(v),
-                    ha="center", va="bottom", fontsize=4.8, color=INK)
+            ax.text(i + off, v + (ylim[1] if ylim else max(values_default)) * 0.02, fmt.format(v),
+                    ha="center", va="bottom", fontsize=4.3, color=INK, rotation=90)
     if reference is not None:
         ax.axhline(reference, color=GRAY, lw=0.7, ls=(0, (3, 2)), zorder=0)
         ax.text(len(models) - 0.5, reference, ref_label, ha="right", va="bottom", fontsize=5, color=MUTED)
@@ -58,26 +58,24 @@ def main_figure(summary):
     models = [m for m in MODEL_ORDER if m in st and m in rp and {"default", "narrow_only"} <= set(rp[m])]
     if not models:
         raise RuntimeError("no model has complete static + replay results")
-    fig, axes = plt.subplots(1, 4, figsize=(5.5, 1.32), gridspec_kw={"width_ratios": [1.15, 1, 1, 1]})
+    fig, axes = plt.subplots(1, 4, figsize=(5.5, 1.25), gridspec_kw={"width_ratios": [1.15, 1, 1, 1]})
 
-    # (a) static trade-off
+    # (a) static trade-off. Controls (0/0, 100/100) are in Table 1; the axes zoom to where the writers lie.
     ax = axes[0]
-    for k, mk in [("allow_all", "s"), ("deny_all", "s"), ("human_only", "D")]:
-        ax.scatter(st[k]["false_block"], st[k]["attacks_blocked"], marker=mk, s=14, color=GRAY, zorder=3,
-                   edgecolor="white", linewidth=0.5)
-    ctrl_pos = {"allow_all": (6, 4), "deny_all": (-6, -9), "human_only": (-4, -9)}
-    for k, (dx, dy) in ctrl_pos.items():
-        ax.annotate({"allow_all": "allow-all", "deny_all": "deny-all", "human_only": "hand-written"}[k],
-                    (st[k]["false_block"], st[k]["attacks_blocked"]), xytext=(dx, dy), textcoords="offset points",
-                    fontsize=5, color=MUTED, ha="left" if dx > 0 else "right")
+    fb = [st[m]["false_block"] for m in models]
+    blk = [st[m]["attacks_blocked"] for m in models]
     for m in models:
         ax.scatter(st[m]["false_block"], st[m]["attacks_blocked"], s=16, color=COLORS[m], zorder=4,
                    edgecolor="white", linewidth=0.5)
-        ax.annotate(SHORT[m], (st[m]["false_block"], st[m]["attacks_blocked"]), xytext=(3, 2),
-                    textcoords="offset points", fontsize=5, color=INK)
-    ax.set_xlim(-5, 105), ax.set_ylim(-5, 108)
+    # Labels alternate above/below in order of FB so neighbours never share a side.
+    for k, m in enumerate(sorted(models, key=lambda m: st[m]["false_block"])):
+        ax.annotate(SHORT[m], (st[m]["false_block"], st[m]["attacks_blocked"]), xytext=(0, 3 if k % 2 == 0 else -7),
+                    textcoords="offset points", fontsize=5, color=INK, ha="center")
+    pad_x, pad_y = 5, 1.5
+    ax.set_xlim(min(fb) - pad_x, max(fb) + pad_x)
+    ax.set_ylim(min(blk) - pad_y, 100.5)
     ax.set_xlabel("FB (%)", labelpad=1)
-    ax.set_ylabel("Blk (%)")
+    ax.set_ylabel("Blk (%)", labelpad=1)
     ax.set_title("(a) static check", loc="left")
     ax.grid(color="#e6e5e1", lw=0.4), ax.set_axisbelow(True)
 
@@ -102,12 +100,12 @@ def main_figure(summary):
     from matplotlib.patches import Patch
     axes[0].legend(handles=[Patch(facecolor=GRAY, label="default (b-d)"),
                             Patch(facecolor=GRAY, alpha=0.55, hatch="////", label="narrow-only")],
-                   fontsize=4.8, frameon=False, loc="lower right", handlelength=1.2, borderaxespad=0.1)
+                   fontsize=4.6, frameon=False, loc="lower right", handlelength=1.1, borderaxespad=0.1)
     fig.tight_layout(pad=0.15, w_pad=0.5)
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     out = FIG_DIR / "main.pdf"
-    fig.savefig(out)
-    fig.savefig(FIG_DIR / "main.png", dpi=200)
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.01)
+    fig.savefig(FIG_DIR / "main.png", dpi=200, bbox_inches="tight", pad_inches=0.01)
     print(f"[figures] wrote {out} (models: {models})")
 
 

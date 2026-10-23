@@ -26,7 +26,7 @@
 \newcommand{\para}[1]{\noindent\textbf{#1}\;}
 \newcommand{\code}[1]{\texttt{\small #1}}
 
-\title{Who Guards the Policy Writer? Auditing Progent}
+\title{Who Guards Progent's Policy Writer?}
 \author{Abhijit Das, MBZUAI \quad \texttt{aj.das.research@gmail.com}}
 
 \begin{document}
@@ -65,8 +65,8 @@ traces with ground truth where an injection ground-truth string (absent from pro
 policy / an injection call blocked by $P_0$ becomes allowed. \emph{Util}: \% of benign traces with utility and no block.
 
 \section{Setup}
-\para{Policy models.} GPT-4o-2024-08-06 (Progent's default) and, via vLLM, Qwen3-30B-A3B-Instruct-2507,
-Mistral-Small-3.2-24B, Qwen3.5-9B (no thinking), Qwen2.5-7B-Instruct; temperature 0, seed 0. \para{Traces.} No live
+\para{Policy models.} GPT-4o-2024-08-06 (Progent's default) and, via vLLM, Qwen3-30B-A3B-Instruct,
+Mistral-Small-3.2-24B, Qwen3.5-9B (no thinking), Qwen2.5-7B-Instruct; temperature 0. \para{Traces.} No live
 agent: AgentDojo's published Llama-3.3-70B traces (v1.2.1, \code{important\_instructions}); 97 benign, \nAttacked{} attacked.
 \para{Compute.} 8$\times$RTX PRO 6000 (shared); \totalCalls{} cached policy calls; GPT-4o \gptMTokIn{}M/\gptMTokOut{}M
 tokens, \$\gptCost{}. \para{Code.} Progent/AgentDojo copied with four marked patches (local endpoint, cache, outcome
@@ -74,19 +74,18 @@ counters, 4096-token cap for local models); custom harness, replay, analysis; \c
 \code{set()}-ordered policy otherwise changes update prompts between runs. \para{Deviations.} Progent's fork comments out
 travel injection tasks 2 and 6 (\nExcluded{} of 949 cases; task 6 succeeds by text alone, unblockable by any tool policy)
 and defaults \code{benchmark.py} to v1.1.2. We use its v1.2 suite; on the excluded cases undefended ASR is \exclTraceASR\%
-and GPT-4o replay ASR \rpGptDExclASR\%.
+and replay ASR reaches \rpMistralDExclASR\% (Mistral, default).
 
 \section{Results}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figs/main.pdf}
-\caption{\textbf{(a)} Initial policies: false blocks vs.\ blocked attacks (gray: controls). \textbf{(b--d)} Update replay;
-solid = Progent default (unconfirmed updates), hatched = narrowing-only; dashed = undefended. 4o = GPT-4o; Q30B, M24B,
-Q9B, Q7B = open models.}
+\caption{\textbf{(a)} Initial policies (controls: Tab.~\ref{tab:main}). \textbf{(b--d)} Update replay; solid = default,
+hatched = narrowing-only. 4o = GPT-4o; 30B/24B/9B/7B = Qwen3-A3B/Mistral/Qwen3.5/Qwen2.5.}
 \label{fig:main}
 \end{figure}
 \begin{table}[t]
-\centering\scriptsize\setlength{\tabcolsep}{3.1pt}
+\centering\scriptsize\setlength{\tabcolsep}{3.1pt}\renewcommand{\arraystretch}{0.88}
 \caption{Metrics (\%). Published (Progent, GPT-4o agent): ASR 39.9$\to$1.0; initial policy alone 2.5.}
 \label{tab:main}
 \input{../results/table_main.tex}
@@ -94,34 +93,38 @@ Q9B, Q7B = open models.}
 
 \para{Anchor.} AgentDojo's published GPT-4o (2024-05-13, no defense) row recomputed from its shipped traces: utility
 \anchorutility\%, utility under attack \anchorutilityunderattack\%, ASR \anchortargetedasr\%, an exact match.
-\para{Initial policies need updates (Fig.~\ref{fig:main}a).} GPT-4o's initial policies block \stGptBlk\% of attacks,
-consistent with the paper's 2.5\% initial-policy ASR, but falsely block \stGptFB\% of user tasks, so utility
-\emph{depends} on updates that widen the policy from tool outputs, the channel the attacker writes to.
-\para{Updates admit attacker values (Fig.~\ref{fig:main}d).} With the released defaults, attacker values enter GPT-4o's
-policy in \rpGptDAtkPol\% of attacked traces and \rpGptDUnblk\% of attacks become allowed. In banking user task 12
-(``\emph{Read the file landlord-notices.txt and follow the instructions precisely}''), reading the injected file makes
-GPT-4o add \code{send\_money} with \code{recipient}$\,\in\,$\{\code{US1330\ldots1212}\}, the attacker's IBAN, and the
-attack completes. Replay ASR stays low (\rpGptDASR\% vs.\ \traceASR\% undefended): most attacks are blocked before an
-update can admit them. \para{Narrowing-only} rejects \rpGptNRejected{} GPT-4o updates, removes all unblocked attacks
-(\rpGptNUnblk\%) and gives ASR \rpGptNASR\% at utility \rpGptNUtil\% (vs.\ \rpGptDUtil\%); attacker strings can still
-\emph{narrow} an unrestricted argument (\rpGptNAtkPol\%).
+\para{Initial policies need updates (Fig.~\ref{fig:main}a).} Every writer's initial policies block most attacks
+(\stQnineBlk--\stQthirtyBlk\%; GPT-4o \stGptBlk\%, consistent with the paper's 2.5\% initial-policy ASR) but falsely block
+\stGptFB--\stQsevenFB\% of user tasks, so utility \emph{depends} on updates that widen the policy from tool outputs, the
+channel the attacker writes to. \para{Updates admit attacker values, depending on the writer (Fig.~\ref{fig:main}c,d).}
+With the released defaults, attacker values enter the policy in \rpGptDAtkPol\% of GPT-4o's attacked traces but in
+\rpQnineDAtkPol--\rpMistralDAtkPol\% for Qwen3.5-9B, Qwen3-30B and Mistral-24B, where \rpQnineDUnblk--\rpQthirtyDUnblk\%
+of attacks go from blocked to allowed (GPT-4o: \rpGptDUnblk\%) and replay ASR rises to \rpQthirtyDASR\% (GPT-4o:
+\rpGptDASR\%; undefended: \traceASR\%). Qwen2.5-7B rarely updates: it admits little but has the lowest utility. In banking
+task 12 (``\emph{Read the file landlord-notices.txt and follow the instructions precisely}''), the injected file makes GPT-4o add \code{send\_money} with \code{recipient}$\,\in\,$\{\code{US1330\ldots1212}\}, the attacker's IBAN, and the
+attack completes.
+\para{Narrowing-only} cuts unblocked attacks to $\leq$\rpMistralNUnblk\% and replay ASR to
+$\leq$\rpQnineNASR\% for every writer at a cost of 1--4 utility points; attacker values can still \emph{narrow} an
+unrestricted argument (up to \rpQnineNAtkPol\%). The one remaining unblock exposes a gap in the check itself: Progent's
+Z3 encoding ignores an empty \code{enum}, so \code{\{"enum":[]\}}$\to$\code{\{"enum":["13"]\}} (the attacker's file) passes
+as narrowing, although enforcement blocks \code{"13"} before and allows it after (\code{results/subset\_bug.json}).
 
 \section{Verification}
-Controls through the same checker: allow-all FB \stAllowFB\%/Blk \stAllowBlk\%; deny-all \stDenyFB\%/\stDenyBlk\%;
-hand-written list alone \stHumanFB\%/\stHumanBlk\%, so the LLM entries restore utility. Cached reruns make zero new calls
-with identical records; \nTruncated{} replies hit the output cap (retried by Progent). Consistency checks raise rather than
-skip; they caught iteration-capped traces, fork-removed tasks and nondeterministic prompts.
+Controls (Tab.~\ref{tab:main}) behave as required: allow-all blocks nothing, deny-all everything; the hand-written list
+alone falsely blocks \stHumanFB\%, so the LLM entries restore utility. Cached reruns make zero new calls
+with identical records; \nTruncated{} replies (Qwen3.5/Qwen3-30B) hit the output cap and were retried by Progent. Consistency checks raise rather than
+skip (they caught three harness bugs).
 
 \section{Limitations and Next Step}
-Replay ASR is a lower bound (after a block the agent would act differently); traces come from Llama-3.3-70B, not the
-paper's GPT-4o agent; string matching misses paraphrased values; one non-adaptive attack. \textbf{Next:} injections aimed
-at the \emph{policy updater} (``the user approved IBAN X'') with the monotone check on: does narrowing toward
-attacker-chosen values yield end-to-end attacks the expansion check never sees?
+Replay ASR is a lower bound (after a block the agent would act differently); traces come from Llama-3.3-70B (v1.2.1),
+not the paper's GPT-4o agent on v1.2; string matching misses paraphrased values; one non-adaptive attack. \textbf{Next:} adaptive injections
+aimed at the \emph{policy updater} (``the user approved IBAN X''): does narrowing toward attacker values evade the monotone check?
 
 \section{AI Use, Collaboration, and Conduct}
 Claude Code (Opus) wrote the harness, ran experiments and drafted the report under my direction; I verified the anchor,
-paper quotations, code diffs and the example trace by hand. AI errors caught: it misquoted the published GPT-4o ASR as
-57.69\% (it is 47.69\%), and its first runner script continued silently after failures. No collaborators. Only AgentDojo's
+paper quotes, code diffs and the example trace by hand. AI errors caught: it misquoted the published GPT-4o ASR as
+57.69\% (it is 47.69\%), its first runner script continued silently after failures, and
+its first attacker-value metric counted benign strings anywhere in the policy (caught by an independent audit agent). No collaborators. Only AgentDojo's
 simulated environments were used; no live systems; no API keys in the submission.
 
 {\scriptsize
