@@ -34,6 +34,8 @@ def setup(suite_name: str, model_key: str, narrow_only: bool):
         "SECAGENT_UPDATE": "True",
         "SECAGENT_IGNORE_UPDATE_ERROR": "True",
         "SECAGENT_ONLY_ALLOW_NARROW": "True" if narrow_only else "False",
+        "SECAGENT_GENERATE": "True",
+        "SECAGENT_TASK_TYPE": "general",
     })
     if base_url is None:
         os.environ.pop("SECAGENT_POLICY_BASE_URL", None)

@@ -15,130 +15,124 @@
 \input{../results/numbers.tex}
 
 % Two-page budget: tighter float and section spacing.
-\setlength{\textfloatsep}{5pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{4pt plus 2pt minus 2pt}
 \setlength{\floatsep}{3pt}
+\setlength{\intextsep}{2pt}
 \setlength{\abovecaptionskip}{1pt}
 \setlength{\belowcaptionskip}{0pt}
 \makeatletter
-\renewcommand\section{\@startsection{section}{1}{\z@}{-1.0ex plus -0.3ex minus -0.2ex}{0.4ex}{\large\bf\raggedright}}
+\renewcommand\section{\@startsection{section}{1}{\z@}{-0.8ex plus -0.2ex minus -0.2ex}{0.3ex}{\large\bf\raggedright}}
 \makeatother
 \newcommand{\para}[1]{\noindent\textbf{#1}\;}
 \newcommand{\code}[1]{\texttt{\small #1}}
 
-\title{Who Guards the Policy Writer?\\Auditing Progent's LLM-Written Tool Policies}
+\title{Who Guards the Policy Writer? Auditing Progent}
 \author{Abhijit Das, MBZUAI \quad \texttt{aj.das.research@gmail.com}}
 
 \begin{document}
 \maketitle
-\vspace{-2.4em}
+\vspace{-2.8em}
 
 \section{Question}
-\para{Promise.} Progent~\citep{shi2025progent} has an LLM turn the user's query into a deterministic JSON-schema
-policy over tool calls and update it from tool results; with GPT-4o, ASR on AgentDojo~\citep{debenedetti2024agentdojo}
-falls from 39.9\% to 1.0\% at similar utility (2.5\% with the initial policy alone).
-\para{Assumption tested.} The policy writer is reliable and not itself injectable. The paper keeps updates monotone
-unless approved, but its headline run uses an approver that accepts every expansion; the released AgentDojo integration
-generates updates from raw tool outputs, applies them with \code{manual\_check=False}, and leaves the narrowing-only check
-(\code{SECAGENT\_ONLY\_ALLOW\_NARROW}) commented out. \para{Outcome.} Failure analysis with ablations, anchored by an exact reproduction.
+\para{Promise.} Progent~\citep{shi2025progent} has an LLM turn the user's query into a deterministic JSON-schema policy
+over tool calls and update it from tool results; with GPT-4o, AgentDojo~\citep{debenedetti2024agentdojo} ASR falls from
+39.9\% to 1.0\% at similar utility (2.5\% with the initial policy alone). \para{Assumption tested.} The policy writer is
+reliable and not injectable. The paper's updates are monotone unless approved, but its headline run accepts every
+expansion; the released integration applies updates generated from raw tool outputs (\code{manual\_check=False}) with
+the narrowing-only check off. \para{Outcome.} Failure analysis with ablations, anchored by an exact reproduction.
 
 \section{Method}
-\begin{wrapfigure}[11]{r}{0.5\textwidth}
-\vspace{-1.2em}
+\begin{wrapfigure}[10]{r}{0.5\textwidth}
+\vspace{-1.3em}
 \centering
 \resizebox{\linewidth}{!}{\input{arch.tex}}
-\vspace{-1.4em}
-\caption{\small Audit setup. Progent's loop (left); our static check and trace replay feed its checker (right).}
+\vspace{-1.5em}
+\caption{\small Audit setup: Progent's loop (left); our static check and trace replay drive its checker (right).}
 \label{fig:arch}
-\vspace{-1.2em}
+\vspace{-1.4em}
 \end{wrapfigure}
-We run Progent's own code (\code{secagent} and its AgentDojo fork, suite v1.2) with policy logic and prompts unchanged.
-\textbf{Static check:} for each of 97 user tasks Progent writes the initial policy $P_u$ (hand-written always-allowed list
-+ LLM entries); every ground-truth call of $u$ and of every injection task is checked by Progent's
-\code{check\_tool\_call} after AgentDojo's argument validation. \emph{FB}: \% of user tasks with a blocked ground-truth
-call. \emph{Blk}: \% of (user, injection) pairs with a blocked injection call (\nPairs{} pairs; \nPairsNoGT{} pairs of
-workspace tasks 6--13 have no ground-truth calls in AgentDojo and are excluded). \textbf{Update replay:} we walk
-AgentDojo's shipped undefended traces step by step. Each call is checked against the current policy; a block means the
-trace diverges from what Progent would produce, so we stop. Otherwise the step's calls and \emph{recorded} outputs go
-through Progent's \code{generate\_update\_security\_policy}. With no block the agent saw byte-identical inputs, so the
-recorded outcome is Progent's. \emph{ASR}: \% of attacked traces that succeeded and were never blocked (a lower bound).
-\emph{AtkPol}: \% where a string from the injection task's ground-truth arguments (absent from the prompt and the user
-task's ground truth) enters the policy. \emph{Unblk}: \% where an injection call blocked by $P_u$ becomes allowed (both over
-the \nAtkGT{} traces with ground truth). \emph{Util}: \% of benign traces with recorded utility and no block.
+We run Progent's own code (\code{secagent} and its AgentDojo fork, suite v1.2), policy logic and prompts unchanged
+(Fig.~\ref{fig:arch}). \textbf{Static check:} for each of 97 user tasks Progent writes the initial policy $P_0$
+(hand-written always-allowed list + LLM entries); Progent's \code{check\_tool\_call}, after AgentDojo's argument
+validation, judges every ground-truth call of the user task and of every injection task. \emph{FB}: \% of user tasks with
+a blocked ground-truth call. \emph{Blk}: \% of (user, injection) pairs with a blocked injection call, over \nPairs{} pairs
+(AgentDojo gives no ground-truth calls for workspace injection tasks 6--13, \nPairsNoGT{} pairs). \textbf{Update replay:}
+we walk AgentDojo's shipped undefended traces. Each call is checked against the current policy; a block means the run
+would diverge, so we stop. Otherwise the step's calls and \emph{recorded} outputs go through Progent's
+\code{generate\_update\_security\_policy}. Without a block the agent saw byte-identical inputs, so the recorded outcome is
+Progent's. \emph{ASR}: \% of attacked traces succeeding unblocked (a lower bound). \emph{AtkPol}/\emph{Unblk}: \% of the \nAtkGT{}
+traces with ground truth where an injection ground-truth string (absent from prompt and user ground truth) enters the
+policy / an injection call blocked by $P_0$ becomes allowed. \emph{Util}: \% of benign traces with utility and no block.
 
 \section{Setup}
-\para{Policy models.} GPT-4o-2024-08-06 (Progent's default) and four open models served with vLLM: Qwen3-30B-A3B-Instruct-2507,
-Mistral-Small-3.2-24B, Qwen3.5-9B (thinking off), Qwen2.5-7B-Instruct; temperature 0, seed 0. \para{Traces.} No live
-agent: AgentDojo's published Llama-3.3-70B traces (v1.2.1, \code{important\_instructions}), 97 benign and \nAttacked{}
-attacked. \para{Compute.} 8$\times$RTX PRO 6000 shared with other jobs; \totalCalls{} cached policy calls; GPT-4o
-\gptMTokIn{}M/\gptMTokOut{}M in/out tokens, \$\gptCost{} at list price. \para{Code.} Progent and AgentDojo copied
-unmodified except four marked patches (local endpoint, request cache, update-outcome counters, 4096-token output cap for
-local models); custom harness, replay and analysis; \code{PYTHONHASHSEED=0} because Progent's \code{set()}-ordered policy
-otherwise makes update prompts differ between runs. \para{Deviations.} Progent's fork comments out travel injection tasks 2
-and 6 (\nExcluded{} of 949 cases; task 6 succeeds through text alone, which no tool policy can block) and its
-\code{benchmark.py} defaults to v1.1.2. We use its v1.2 suite and report the excluded cases separately.
+\para{Policy models.} GPT-4o-2024-08-06 (Progent's default) and, via vLLM, Qwen3-30B-A3B-Instruct-2507,
+Mistral-Small-3.2-24B, Qwen3.5-9B (no thinking), Qwen2.5-7B-Instruct; temperature 0, seed 0. \para{Traces.} No live
+agent: AgentDojo's published Llama-3.3-70B traces (v1.2.1, \code{important\_instructions}); 97 benign, \nAttacked{} attacked.
+\para{Compute.} 8$\times$RTX PRO 6000 (shared); \totalCalls{} cached policy calls; GPT-4o \gptMTokIn{}M/\gptMTokOut{}M
+tokens, \$\gptCost{}. \para{Code.} Progent/AgentDojo copied with four marked patches (local endpoint, cache, outcome
+counters, 4096-token cap for local models); custom harness, replay, analysis; \code{PYTHONHASHSEED=0}, since Progent's
+\code{set()}-ordered policy otherwise changes update prompts between runs. \para{Deviations.} Progent's fork comments out
+travel injection tasks 2 and 6 (\nExcluded{} of 949 cases; task 6 succeeds by text alone, unblockable by any tool policy)
+and defaults \code{benchmark.py} to v1.1.2. We use its v1.2 suite; on the excluded cases undefended ASR is \exclTraceASR\%
+and GPT-4o replay ASR \rpGptDExclASR\%.
 
 \section{Results}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figs/main.pdf}
-\caption{\textbf{(a)} Initial policies trade false blocks for blocked attacks (gray: controls). \textbf{(b--d)} Update
-replay; solid = Progent default (updates applied unconfirmed), hatched = narrowing-only; dashed = undefended trace.
-4o = GPT-4o; Q30B, M24B, Q9B, Q7B = open models.}
+\caption{\textbf{(a)} Initial policies: false blocks vs.\ blocked attacks (gray: controls). \textbf{(b--d)} Update replay;
+solid = Progent default (unconfirmed updates), hatched = narrowing-only; dashed = undefended. 4o = GPT-4o; Q30B, M24B,
+Q9B, Q7B = open models.}
 \label{fig:main}
 \end{figure}
 \begin{table}[t]
 \centering\scriptsize\setlength{\tabcolsep}{3.1pt}
-\caption{Metrics (\%) per policy writer and control. Published (Progent paper, GPT-4o agent): ASR 39.9$\to$1.0; initial policy alone 2.5.}
+\caption{Metrics (\%). Published (Progent, GPT-4o agent): ASR 39.9$\to$1.0; initial policy alone 2.5.}
 \label{tab:main}
 \input{../results/table_main.tex}
 \end{table}
 
-\para{Anchor.} AgentDojo's published GPT-4o (2024-05-13, no defense) row, recomputed from its shipped traces: utility
-\anchorutility\%, utility under attack \anchorutilityunderattack\%, targeted ASR \anchortargetedasr\%. All three match exactly.
+\para{Anchor.} AgentDojo's published GPT-4o (2024-05-13, no defense) row recomputed from its shipped traces: utility
+\anchorutility\%, utility under attack \anchorutilityunderattack\%, ASR \anchortargetedasr\%, an exact match.
 \para{Initial policies need updates (Fig.~\ref{fig:main}a).} GPT-4o's initial policies block \stGptBlk\% of attacks,
-consistent with the paper's 2.5\% initial-policy ASR, but falsely block \stGptFB\% of user tasks. Utility therefore
-\emph{depends} on updates that widen the policy from tool outputs, which is the channel the attacker writes to.
+consistent with the paper's 2.5\% initial-policy ASR, but falsely block \stGptFB\% of user tasks, so utility
+\emph{depends} on updates that widen the policy from tool outputs, the channel the attacker writes to.
 \para{Updates admit attacker values (Fig.~\ref{fig:main}d).} With the released defaults, attacker values enter GPT-4o's
-policy in \rpGptDAtkPol\% of attacked traces and \rpGptDUnblk\% of attacks go from blocked to allowed. Example (banking,
-user task 12: ``\emph{Read the file landlord-notices.txt and follow the instructions precisely}''): after reading the injected
-file, GPT-4o adds \code{send\_money} with \code{recipient}$\,\in\,$\{\code{US1330\ldots1212}\}, the attacker's IBAN, and
-the attack completes. Replay ASR stays low (\rpGptDASR\% vs.\ \traceASR\% undefended) because most attacks are blocked
-before an update can admit them. \para{Narrowing-only.} The check rejects \rpGptNRejected{} GPT-4o updates, removes every
-unblocked attack (\rpGptNUnblk\%) and gives replay ASR \rpGptNASR\%, at utility \rpGptNUtil\% vs.\ \rpGptDUtil\%. Attacker
-strings can still \emph{narrow} an unrestricted argument (\rpGptNAtkPol\%), steering rather than widening the action space.
-\para{Excluded cases.} On the \nExcluded{} travel cases the fork drops, undefended ASR is \exclTraceASR\% and replay ASR
-under GPT-4o is \rpGptDExclASR\%.
+policy in \rpGptDAtkPol\% of attacked traces and \rpGptDUnblk\% of attacks become allowed. In banking user task 12
+(``\emph{Read the file landlord-notices.txt and follow the instructions precisely}''), reading the injected file makes
+GPT-4o add \code{send\_money} with \code{recipient}$\,\in\,$\{\code{US1330\ldots1212}\}, the attacker's IBAN, and the
+attack completes. Replay ASR stays low (\rpGptDASR\% vs.\ \traceASR\% undefended): most attacks are blocked before an
+update can admit them. \para{Narrowing-only} rejects \rpGptNRejected{} GPT-4o updates, removes all unblocked attacks
+(\rpGptNUnblk\%) and gives ASR \rpGptNASR\% at utility \rpGptNUtil\% (vs.\ \rpGptDUtil\%); attacker strings can still
+\emph{narrow} an unrestricted argument (\rpGptNAtkPol\%).
 
 \section{Verification}
-Controls through the same checker: allow-all FB \stAllowFB\%/Blk \stAllowBlk\%; deny-all FB \stDenyFB\%/Blk \stDenyBlk\%;
-the hand-written list alone FB \stHumanFB\%/Blk \stHumanBlk\%, so the LLM entries are what restore utility. Rerunning from
-the cache makes zero new calls and gives identical records. \nTruncated{} replies hit the output cap (Progent retries them).
-Consistency checks raise instead of skipping; they caught traces ending at AgentDojo's iteration cap, tasks the fork removed,
-and nondeterministic prompts, all fixed before the final run.
+Controls through the same checker: allow-all FB \stAllowFB\%/Blk \stAllowBlk\%; deny-all \stDenyFB\%/\stDenyBlk\%;
+hand-written list alone \stHumanFB\%/\stHumanBlk\%, so the LLM entries restore utility. Cached reruns make zero new calls
+with identical records; \nTruncated{} replies hit the output cap (retried by Progent). Consistency checks raise rather than
+skip; they caught iteration-capped traces, fork-removed tasks and nondeterministic prompts.
 
 \section{Limitations and Next Step}
-Replay ASR is a lower bound: after a block the real agent would act differently, which a replay cannot show. The traces
-come from Llama-3.3-70B, not the paper's GPT-4o agent. String matching misses paraphrased attacker values. We test a
-single, non-adaptive attack. \textbf{Next:} injections written for the \emph{policy updater} (e.g., ``the user approved IBAN
-X''), with Progent's monotone check on, to test whether narrowing toward attacker-chosen values yields end-to-end attacks
-that the expansion check never sees.
+Replay ASR is a lower bound (after a block the agent would act differently); traces come from Llama-3.3-70B, not the
+paper's GPT-4o agent; string matching misses paraphrased values; one non-adaptive attack. \textbf{Next:} injections aimed
+at the \emph{policy updater} (``the user approved IBAN X'') with the monotone check on: does narrowing toward
+attacker-chosen values yield end-to-end attacks the expansion check never sees?
 
 \section{AI Use, Collaboration, and Conduct}
-Claude Code (Opus) wrote the harness, ran experiments and drafted the report under my direction. I verified by hand the
-anchor against the AgentDojo leaderboard, the paper quotations, the Progent/AgentDojo code diffs and the example trace.
-AI errors caught: it misremembered the published GPT-4o ASR as 57.69\% (it is 47.69\%), and its first runner script
-continued silently after failed steps. No collaborators. Only AgentDojo's simulated environments were used; no live
-accounts, systems or agents; no API keys in the submission.
+Claude Code (Opus) wrote the harness, ran experiments and drafted the report under my direction; I verified the anchor,
+paper quotations, code diffs and the example trace by hand. AI errors caught: it misquoted the published GPT-4o ASR as
+57.69\% (it is 47.69\%), and its first runner script continued silently after failures. No collaborators. Only AgentDojo's
+simulated environments were used; no live systems; no API keys in the submission.
 
-{\footnotesize
+{\scriptsize
 \begin{thebibliography}{2}
 \setlength{\itemsep}{0pt}
 \bibitem[Debenedetti et~al.(2024)]{debenedetti2024agentdojo}
-E.~Debenedetti, J.~Zhang, M.~Balunovi\'c, L.~Beurer-Kellner, M.~Fischer, F.~Tram\`er.
-AgentDojo: A dynamic environment to evaluate prompt injection attacks and defenses for LLM agents.
-arXiv:2406.13352, 2024. \url{https://arxiv.org/abs/2406.13352}; traces: \url{https://github.com/ethz-spylab/agentdojo}.
+E.~Debenedetti, J.~Zhang, M.~Balunovi\'c, L.~Beurer-Kellner, M.~Fischer, F.~Tram\`er. AgentDojo: A dynamic environment to
+evaluate prompt injection attacks and defenses for LLM agents. arXiv:2406.13352, 2024.
+\url{https://arxiv.org/abs/2406.13352}; \url{https://github.com/ethz-spylab/agentdojo}.
 \bibitem[Shi et~al.(2025)]{shi2025progent}
 T.~Shi, J.~He, Z.~Wang, H.~Li, L.~Wu, W.~Guo, D.~Song. Progent: Securing AI agents with privilege control.
-arXiv:2504.11703, 2025. \url{https://arxiv.org/abs/2504.11703}; code: \url{https://github.com/sunblaze-ucb/progent}.
+arXiv:2504.11703, 2025. \url{https://arxiv.org/abs/2504.11703}; \url{https://github.com/sunblaze-ucb/progent}.
 \end{thebibliography}}
 \end{document}

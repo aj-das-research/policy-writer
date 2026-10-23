@@ -58,7 +58,7 @@ def main_figure(summary):
     models = [m for m in MODEL_ORDER if m in st and m in rp and {"default", "narrow_only"} <= set(rp[m])]
     if not models:
         raise RuntimeError("no model has complete static + replay results")
-    fig, axes = plt.subplots(1, 4, figsize=(5.5, 1.5), gridspec_kw={"width_ratios": [1.15, 1, 1, 1]})
+    fig, axes = plt.subplots(1, 4, figsize=(5.5, 1.32), gridspec_kw={"width_ratios": [1.15, 1, 1, 1]})
 
     # (a) static trade-off
     ax = axes[0]
@@ -76,8 +76,8 @@ def main_figure(summary):
         ax.annotate(SHORT[m], (st[m]["false_block"], st[m]["attacks_blocked"]), xytext=(3, 2),
                     textcoords="offset points", fontsize=5, color=INK)
     ax.set_xlim(-5, 105), ax.set_ylim(-5, 108)
-    ax.set_xlabel("false blocks (% user tasks)")
-    ax.set_ylabel("attacks blocked (% pairs)")
+    ax.set_xlabel("FB (%)", labelpad=1)
+    ax.set_ylabel("Blk (%)")
     ax.set_title("(a) static check", loc="left")
     ax.grid(color="#e6e5e1", lw=0.4), ax.set_axisbelow(True)
 
@@ -86,7 +86,7 @@ def main_figure(summary):
     _bars(axes[1], models, [rp[m]["default"]["replay_utility"] for m in models],
           [rp[m]["narrow_only"]["replay_utility"] for m in models], any_m["trace_utility"],
           f"no defense {any_m['trace_utility']:.1f}", ylim=(0, 70))
-    axes[1].set_title("(b) replay utility (%)", loc="left")
+    axes[1].set_title("(b) replay Util (%)", loc="left")
     # (c) replay ASR
     _bars(axes[2], models, [rp[m]["default"]["replay_asr"] for m in models],
           [rp[m]["narrow_only"]["replay_asr"] for m in models], None, None,
@@ -98,12 +98,12 @@ def main_figure(summary):
     _bars(axes[3], models, [rp[m]["default"]["attacker_in_policy"] for m in models],
           [rp[m]["narrow_only"]["attacker_in_policy"] for m in models], None, None,
           ylim=(0, _top([rp[m][k]["attacker_in_policy"] for m in models for k in rp[m]])), fmt="{:.1f}")
-    axes[3].set_title("(d) atk. value in policy", loc="left")
+    axes[3].set_title("(d) replay AtkPol (%)", loc="left")
     from matplotlib.patches import Patch
-    fig.tight_layout(pad=0.2, w_pad=0.6, rect=(0, 0, 1, 0.93))
-    fig.legend(handles=[Patch(facecolor=GRAY, label="default updates"),
-                        Patch(facecolor=GRAY, alpha=0.55, hatch="////", label="narrowing-only")],
-               fontsize=5.5, frameon=False, loc="upper right", ncol=2, handlelength=1.4, bbox_to_anchor=(1.0, 1.01))
+    axes[0].legend(handles=[Patch(facecolor=GRAY, label="default (b-d)"),
+                            Patch(facecolor=GRAY, alpha=0.55, hatch="////", label="narrow-only")],
+                   fontsize=4.8, frameon=False, loc="lower right", handlelength=1.2, borderaxespad=0.1)
+    fig.tight_layout(pad=0.15, w_pad=0.5)
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     out = FIG_DIR / "main.pdf"
     fig.savefig(out)
