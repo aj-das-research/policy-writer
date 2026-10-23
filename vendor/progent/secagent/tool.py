@@ -190,7 +190,11 @@ def _api_request(sys_prompt, user_prompt, temperature=0.0):
             model=policy_model,
             temperature=temperature,
             seed=0,
+            max_tokens=int(os.environ["SECAGENT_POLICY_MAX_TOKENS"]),
         )
+        if chat_completion.choices[0].finish_reason == "length":
+            print(f"[policy-writer] WARNING: {policy_model} hit max_tokens; reply truncated (Progent will retry on "
+                  f"parse failure)", file=sys.stderr)
         return chat_completion.choices[0].message.content, _usage(chat_completion)
     global total_completion_tokens, total_prompt_tokens
     if policy_model.startswith("claude"):

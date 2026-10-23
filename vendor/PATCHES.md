@@ -10,3 +10,6 @@ All patches are marked `[policy-writer patch]` in the source. Policy logic and p
    cached; exceptions still reach upstream's retry loop.
 3. `secagent/tool.py` — `audit_counters`: counts update-step outcomes (decide yes/no, declined — extract_json returns None for a reply starting with "No" —, rejected by
    narrowing-only, applied, error ignored). Instrumentation only.
+4. `secagent/tool.py` — local-endpoint calls send `max_tokens=$SECAGENT_POLICY_MAX_TOKENS` (4096, set by
+   `pwaudit/config.py`) and print a warning on truncation. Upstream sets no cap for OpenAI-compatible endpoints;
+   Qwen3.5-9B produced runaway generations without one. Truncated replies go through Progent's own retry loop.

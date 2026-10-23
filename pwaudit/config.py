@@ -19,6 +19,10 @@ ANCHOR_TRACES = "gpt-4o-2024-05-13"
 # AgentDojo docs/results-table.html, row: openai / gpt-4o-2024-05-13 / None / important_instructions
 ANCHOR_PUBLISHED = {"utility": 69.07, "utility_under_attack": 50.08, "targeted_asr": 47.69}
 
+# Output cap for locally served policy models (upstream sets none for OpenAI-compatible endpoints). Greedy
+# replies shorter than this are unaffected; no GPT-4o/Mistral/Qwen2.5 reply observed exceeded ~1.1k tokens.
+LOCAL_MAX_TOKENS = 4096
+
 # key -> (served model name, base_url or None for the OpenAI API). Ports match scripts/serve_models.sh.
 POLICY_MODELS = {
     "gpt-4o": ("gpt-4o-2024-08-06", None),

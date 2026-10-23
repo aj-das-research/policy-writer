@@ -41,6 +41,7 @@ def setup(suite_name: str, model_key: str, narrow_only: bool):
             raise RuntimeError(f"{model_key} needs OPENAI_API_KEY (.env)")
     else:
         os.environ["SECAGENT_POLICY_BASE_URL"] = base_url
+        os.environ["SECAGENT_POLICY_MAX_TOKENS"] = str(config.LOCAL_MAX_TOKENS)
 
     import secagent.tool as tool_mod
     from agentdojo.task_suite.load_suites import get_suite

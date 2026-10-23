@@ -12,6 +12,8 @@ export HF_HOME=${HF_HOME:-$DATA_DIR/hf_cache}
 export VLLM_USE_FLASHINFER_SAMPLER=0
 # FlashInfer's JIT arch auto-detection comes back empty in vLLM workers here; set the RTX PRO 6000 (sm_120) target.
 export FLASHINFER_CUDA_ARCH_LIST=${FLASHINFER_CUDA_ARCH_LIST:-12.0f}
+# FlashInfer JIT-compiles kernels with the env's ninja and the system nvcc; put both on PATH.
+export PATH="$(dirname "$VLLM_BIN"):/usr/local/cuda/bin:$PATH"
 mkdir -p "$DATA_DIR/logs"
 
 # name | served model name | weights (HF id or local path) | GPUs | port | parallelism + memory | extra args
